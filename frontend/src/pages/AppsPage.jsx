@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  List, Card, Spin, Alert, Empty, Button, Modal, Form, Input,
-  InputNumber, Popconfirm, message, Typography, Tag, Space
-} from 'antd'
-import { PlusOutlined, DeleteOutlined, ArrowLeftOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { Alert, Button, Modal, Form, Input, InputNumber, Popconfirm, message } from 'antd'
+import { PlusOutlined, DeleteOutlined, InfoCircleOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { getApps, createApp, deleteApp } from '../api/apps'
-
-const { Title, Text } = Typography
+import { PageHeader, StatStrip, EmptyState, LoadingState, StatusPill } from '../components/UI'
+import { useBreadcrumb } from '../components/BreadcrumbContext'
 
 function AppsPage() {
   const { clusterId, namespaceId } = useParams()
@@ -20,6 +17,12 @@ function AppsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form] = Form.useForm()
+
+  useBreadcrumb([
+    { title: 'کلاسترها', onClick: () => navigate('/clusters') },
+    { title: 'Namespace ها', onClick: () => navigate(`/clusters/${clusterId}/namespaces`) },
+    { title: 'App ها' },
+  ])
 
   const fetchApps = async () => {
     try {
@@ -36,6 +39,7 @@ function AppsPage() {
 
   useEffect(() => {
     fetchApps()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [namespaceId])
 
   const handleCreate = async (values) => {
@@ -67,101 +71,123 @@ function AppsPage() {
 
   const readyCount = (app) => app.pods.filter((p) => p.ready).length
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
-        <Spin size="large" tip="در حال بارگذاری..." />
-      </div>
-    )
-  }
-
-  if (error) {
-    return <Alert type="error" message="خطا" description={error} showIcon style={{ margin: 24 }} />
-  }
+  const runningApps = apps.filter((a) => a.pods.length > 0 && readyCount(a) === a.pods.length).length
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
-      <Button
-        type="text"
-        icon={<ArrowLeftOutlined />}
-        onClick={() => navigate(`/clusters/${clusterId}/namespaces`)}
-        style={{ marginBottom: 16 }}
-      >
-        بازگشت به Namespace ها
-      </Button>
+    <div className="page">
+      <PageHeader
+        backLabel="بازگشت به Namespace ها"
+        onBack={() => navigate(`/clusters/${clusterId}/namespaces`)}
+        title="App ها"
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            App جدید
+          </Button>
+        }
+      />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>App ها</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-          App جدید
-        </Button>
-      </div>
-
-      {apps.length === 0 ? (
-        <Empty description="هیچ App ای وجود ندارد" style={{ marginTop: 60 }} />
-      ) : (
-        <List
-          grid={{ gutter: 16, xs: 1, sm: 1, md: 2, lg: 3 }}
-          dataSource={apps}
-          renderItem={(app) => {
-            const total = app.pods.length
-            const ready = readyCount(app)
-            const allReady = total > 0 && ready === total
-
-            return (
-              <List.Item>
-                <Card
-                  hoverable
-                  onClick={() => navigate(`/apps/${app.id}`)}
-                  actions={[
-                    <Popconfirm
-                      key="delete"
-                      title="حذف App"
-                      description="آیا از حذف این App مطمئن هستید؟"
-                      okText="بله، حذف کن"
-                      cancelText="انصراف"
-                      okButtonProps={{ danger: true }}
-                      onConfirm={(e) => {
-                        e.stopPropagation()
-                        handleDelete(app.id)
-                      }}
-                      onCancel={(e) => e.stopPropagation()}
-                    >
-                      <Button danger type="text" icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()}>
-                        حذف
-                      </Button>
-                    </Popconfirm>,
-                    <Button
-                      key="detail"
-                      type="text"
-                      icon={<InfoCircleOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        navigate(`/apps/${app.id}`)
-                      }}
-                    >
-                      جزئیات
-                    </Button>,
-                  ]}
-                >
-                  <Card.Meta
-                    title={app.name}
-                    description={
-                      <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                        <Text type="secondary">Image: {app.image}</Text>
-                        <Text type="secondary">Replicas: {app.replicas}</Text>
-                        <Text type="secondary">CPU: {app.cpu} | Memory: {app.memory}</Text>
-                        <Tag color={allReady ? 'green' : total === 0 ? 'default' : 'orange'}>
-                          {total === 0 ? 'بدون Pod' : `Ready: ${ready}/${total}`}
-                        </Tag>
-                      </Space>
-                    }
-                  />
-                </Card>
-              </List.Item>
-            )
-          }}
+      {loading ? (
+        <LoadingState label="در حال دریافت App ها…" />
+      ) : error ? (
+        <Alert type="error" message="خطا" description={error} showIcon />
+      ) : apps.length === 0 ? (
+        <EmptyState
+          icon={<AppstoreOutlined />}
+          title="هنوز App ای در این Namespace نیست"
+          description="با دکمه‌ی «App جدید» اولین Deployment این Namespace را بسازید."
+          action={
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+              App جدید
+            </Button>
+          }
         />
+      ) : (
+        <>
+          <StatStrip
+            items={[
+              { label: 'App', value: apps.length, accent: true },
+              { label: 'کاملاً آماده', value: runningApps },
+            ]}
+          />
+
+          <div className="card-grid">
+            {apps.map((app) => {
+              const total = app.pods.length
+              const ready = readyCount(app)
+              const allReady = total > 0 && ready === total
+              const statusClass = total === 0 ? 'status-idle' : allReady ? 'status-ok' : 'status-warn'
+
+              return (
+                <div
+                  key={app.id}
+                  className={`entity-card ${statusClass}`}
+                  onClick={() => navigate(`/apps/${app.id}`)}
+                >
+                  <div className="card-top">
+                    <span className="card-title">{app.name}</span>
+                    <span className="card-icon">
+                      <AppstoreOutlined />
+                    </span>
+                  </div>
+
+                  <div className="kv-row">
+                    <span className="kv-label">Image</span>
+                    <span className="kv-value">{app.image}</span>
+                  </div>
+                  <div className="kv-row">
+                    <span className="kv-label">Replicas</span>
+                    <span className="kv-value">{app.replicas}</span>
+                  </div>
+                  <div className="kv-row">
+                    <span className="kv-label">منابع</span>
+                    <span className="kv-value">
+                      {app.cpu} / {app.memory}
+                    </span>
+                  </div>
+
+                  <div className="card-footer-row">
+                    <StatusPill tone={total === 0 ? 'idle' : allReady ? 'ok' : 'warn'} live={allReady}>
+                      {total === 0 ? 'بدون Pod' : `Ready ${ready}/${total}`}
+                    </StatusPill>
+                    <div className="card-actions">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<InfoCircleOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(`/apps/${app.id}`)
+                        }}
+                      >
+                        جزئیات
+                      </Button>
+                      <Popconfirm
+                        title="حذف App"
+                        description="آیا از حذف این App مطمئن هستید؟"
+                        okText="بله، حذف کن"
+                        cancelText="انصراف"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={(e) => {
+                          e.stopPropagation()
+                          handleDelete(app.id)
+                        }}
+                        onCancel={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          danger
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </Popconfirm>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
 
       <Modal

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { List, Card, Spin, Alert, Empty, Button, Modal, Form, Input, Popconfirm, message, Typography, Space, Tag } from 'antd'
-import { PlusOutlined, DeleteOutlined, AppstoreOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { Alert, Button, Modal, Form, Input, Popconfirm, message } from 'antd'
+import { PlusOutlined, DeleteOutlined, AppstoreOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { getNamespaces, createNamespace, deleteNamespace } from '../api/namespaces'
-
-const { Title } = Typography
+import { PageHeader, StatStrip, EmptyState, LoadingState, StatusPill } from '../components/UI'
+import { useBreadcrumb } from '../components/BreadcrumbContext'
 
 function NamespacesPage() {
   const { clusterId } = useParams()
@@ -17,6 +17,11 @@ function NamespacesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form] = Form.useForm()
+
+  useBreadcrumb([
+    { title: 'کلاسترها', onClick: () => navigate('/clusters') },
+    { title: 'Namespace ها' },
+  ])
 
   const fetchNamespaces = async () => {
     try {
@@ -33,6 +38,7 @@ function NamespacesPage() {
 
   useEffect(() => {
     fetchNamespaces()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusterId])
 
   const handleCreate = async (values) => {
@@ -62,95 +68,92 @@ function NamespacesPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
-        <Spin size="large" tip="در حال بارگذاری..." />
-      </div>
-    )
-  }
-
-  if (error) {
-    return <Alert type="error" message="خطا" description={error} showIcon style={{ margin: 24 }} />
-  }
-
   return (
-    <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
-      <Button
-        type="text"
-        icon={<ArrowLeftOutlined />}
-        onClick={() => navigate('/clusters')}
-        style={{ marginBottom: 16 }}
-      >
-        بازگشت به Cluster ها
-      </Button>
+    <div className="page">
+      <PageHeader
+        backLabel="بازگشت به کلاسترها"
+        onBack={() => navigate('/clusters')}
+        title="Namespace ها"
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+            Namespace جدید
+          </Button>
+        }
+      />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>Namespace ها</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
-          Namespace جدید
-        </Button>
-      </div>
-
-      {namespaces.length === 0 ? (
-        <Empty description="هیچ Namespace ای وجود ندارد" style={{ marginTop: 60 }} />
-      ) : (
-        <List
-          grid={{ gutter: 16, column: 1 }}
-          dataSource={namespaces}
-          renderItem={(ns) => (
-            <List.Item>
-              <Card
-                hoverable
-                onClick={() => navigate(`/clusters/${clusterId}/namespaces/${ns.id}`)}
-                actions={[
-                  <Popconfirm
-                    key="delete"
-                    title="حذف Namespace"
-                    description="آیا از حذف این Namespace مطمئن هستید؟"
-                    okText="بله، حذف کن"
-                    cancelText="انصراف"
-                    okButtonProps={{ danger: true }}
-                    onConfirm={(e) => {
-                      e.stopPropagation()
-                      handleDelete(ns.id)
-                    }}
-                    onCancel={(e) => e.stopPropagation()}
-                  >
-                    <Button
-                      danger
-                      type="text"
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      حذف
-                    </Button>
-                  </Popconfirm>,
-                  <Button
-                    key="apps"
-                    type="text"
-                    icon={<AppstoreOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/clusters/${clusterId}/namespaces/${ns.id}`)
-                    }}
-                  >
-                    مشاهده App ها
-                  </Button>,
-                ]}
-              >
-                <Card.Meta
-                  title={ns.name}
-                  description={
-                    <Space direction="vertical">
-                      <Tag color="blue">Active</Tag>
-                    </Space>
-                  }
-                />
-              </Card>
-            </List.Item>
-          )}
+      {loading ? (
+        <LoadingState label="در حال دریافت Namespace ها…" />
+      ) : error ? (
+        <Alert type="error" message="خطا" description={error} showIcon />
+      ) : namespaces.length === 0 ? (
+        <EmptyState
+          icon={<DatabaseOutlined />}
+          title="هنوز Namespace ای ساخته نشده"
+          description="با دکمه‌ی «Namespace جدید» اولین فضای کاری این کلاستر را بسازید."
+          action={
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>
+              Namespace جدید
+            </Button>
+          }
         />
+      ) : (
+        <>
+          <StatStrip items={[{ label: 'Namespace', value: namespaces.length, accent: true }]} />
+
+          <div className="card-grid">
+            {namespaces.map((ns) => (
+              <div
+                key={ns.id}
+                className="entity-card status-ok"
+                onClick={() => navigate(`/clusters/${clusterId}/namespaces/${ns.id}`)}
+              >
+                <div className="card-top">
+                  <span className="card-title">{ns.name}</span>
+                  <span className="card-icon">
+                    <DatabaseOutlined />
+                  </span>
+                </div>
+
+                <div className="card-footer-row">
+                  <StatusPill tone="ok">فعال</StatusPill>
+                  <div className="card-actions">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<AppstoreOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/clusters/${clusterId}/namespaces/${ns.id}`)
+                      }}
+                    >
+                      App ها
+                    </Button>
+                    <Popconfirm
+                      title="حذف Namespace"
+                      description="آیا از حذف این Namespace مطمئن هستید؟"
+                      okText="بله، حذف کن"
+                      cancelText="انصراف"
+                      okButtonProps={{ danger: true }}
+                      onConfirm={(e) => {
+                        e.stopPropagation()
+                        handleDelete(ns.id)
+                      }}
+                      onCancel={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        danger
+                        type="text"
+                        size="small"
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </Popconfirm>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <Modal

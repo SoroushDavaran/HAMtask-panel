@@ -8,6 +8,7 @@ from kubernetes.client.exceptions import ApiException
 from .models import App
 from .serializers import AppSerializer
 from .k8s_utils import create_k8s_deployment, delete_k8s_deployment, update_k8s_deployment
+from k8sbackend.metrics import track_operation
 
 
 class ConflictException(APIException):
@@ -34,6 +35,14 @@ class AppListCreateView(generics.ListCreateAPIView):
         if not namespace_id:
             return App.objects.none()
         return App.objects.filter(namespace_id=namespace_id)
+
+    def list(self, request, *args, **kwargs):
+        with track_operation(resource="app", operation="list"):
+            return super().list(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        with track_operation(resource="app", operation="create"):
+            return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         namespace = serializer.validated_data['namespace']
@@ -64,6 +73,11 @@ class AppUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     queryset = App.objects.all()
     serializer_class = AppSerializer
 
+    def update(self, request, *args, **kwargs):
+        # هم PUT هم PATCH از همین متد رد می‌شن (partial_update داخلی خودش صداش می‌زنه)
+        with track_operation(resource="app", operation="update"):
+            return super().update(request, *args, **kwargs)
+
     def perform_update(self, serializer):
         instance = self.get_object()
         namespace = instance.namespace
@@ -91,35 +105,38 @@ class AppUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     def delete(self, request, *args, **kwargs):
         pk = kwargs['pk']
 
-        with transaction.atomic():
+        with track_operation(resource="app", operation="delete") as op:
+            with transaction.atomic():
+                try:
+                    instance = App.objects.select_for_update().get(pk=pk)
+                except App.DoesNotExist:
+                    op["outcome"] = "error"
+                    return Response(status=http_status.HTTP_404_NOT_FOUND)
+
+                if instance.status == App.Status.DELETING:
+                    op["outcome"] = "error"
+                    return Response(
+                        {"detail": "App is already being deleted by another request."},
+                        status=http_status.HTTP_409_CONFLICT
+                    )
+
+                instance.status = App.Status.DELETING
+                instance.save()
+
+            namespace = instance.namespace
             try:
-                instance = App.objects.select_for_update().get(pk=pk)
-            except App.DoesNotExist:
-                return Response(status=http_status.HTTP_404_NOT_FOUND)
-
-            if instance.status == App.Status.DELETING:
-                return Response(
-                    {"detail": "App is already being deleted by another request."},
-                    status=http_status.HTTP_409_CONFLICT
-                )
-
-            instance.status = App.Status.DELETING
-            instance.save()
-
-        namespace = instance.namespace
-        try:
-            delete_k8s_deployment(namespace.cluster, namespace.name, instance.name)
-        except ApiException as e:
-            if e.status == 404:
-                pass  # از قبل تو Kubernetes نبوده - مشکلی نیست
-            else:
+                delete_k8s_deployment(namespace.cluster, namespace.name, instance.name)
+            except ApiException as e:
+                if e.status == 404:
+                    pass  # از قبل تو Kubernetes نبوده - مشکلی نیست
+                else:
+                    instance.status = App.Status.ACTIVE
+                    instance.save()
+                    raise BadGatewayException(detail=f"Kubernetes API error: {e.reason}")
+            except Exception as e:
                 instance.status = App.Status.ACTIVE
                 instance.save()
-                raise BadGatewayException(detail=f"Kubernetes API error: {e.reason}")
-        except Exception as e:
-            instance.status = App.Status.ACTIVE
-            instance.save()
-            raise BadGatewayException(detail=f"Connection failed: {str(e)}")
+                raise BadGatewayException(detail=f"Connection failed: {str(e)}")
 
-        instance.delete()
-        return Response(status=http_status.HTTP_204_NO_CONTENT)
+            instance.delete()
+            return Response(status=http_status.HTTP_204_NO_CONTENT)

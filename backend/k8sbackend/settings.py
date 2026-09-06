@@ -27,8 +27,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['davaran.osdl.ir'])
-
+ALLOWED_HOSTS = env.list(
+    'ALLOWED_HOSTS',
+    default=['davaran.osdl.ir', 'localhost', '127.0.0.1', '.svc.cluster.local']
+)   
 
 # Application definition
 
@@ -63,6 +65,7 @@ MIDDLEWARE = [
 ]
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://davaran.osdl.ir",
 ]
 ROOT_URLCONF = 'k8sbackend.urls'

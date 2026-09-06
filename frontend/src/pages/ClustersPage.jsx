@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Row, Col, Card, Spin, Alert, Empty, Tag, Typography } from 'antd'
-import { CloudServerOutlined } from '@ant-design/icons'
+import { Alert } from 'antd'
+import { ClusterOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { getClusters } from '../api/clusters'
-
-const { Title, Text } = Typography
+import { PageHeader, StatStrip, EmptyState, LoadingState, StatusPill } from '../components/UI'
 
 function ClustersPage() {
   const [clusters, setClusters] = useState([])
@@ -28,49 +27,69 @@ function ClustersPage() {
     fetchClusters()
   }, [])
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
-        <Spin size="large" tip="در حال بارگذاری..." />
-      </div>
-    )
-  }
-
-  if (error) {
-    return <Alert type="error" message="خطا" description={error} showIcon style={{ margin: 24 }} />
-  }
+  const totalNamespaces = clusters.reduce((sum, c) => sum + (c.namespace_count || 0), 0)
 
   return (
-    <div style={{ padding: 24 }}>
-      <Title level={2}>Cluster ها</Title>
+    <div className="page">
+      <PageHeader
+        title="کلاسترها"
+        subtitle="نقطه‌ی شروع برای مدیریت کلاسترهای Kubernetes متصل‌شده"
+      />
 
-      {clusters.length === 0 ? (
-        <Empty description="هیچ Cluster ای ثبت نشده است" style={{ marginTop: 60 }} />
+      {loading ? (
+        <LoadingState label="در حال دریافت کلاسترها…" />
+      ) : error ? (
+        <Alert type="error" message="خطا" description={error} showIcon />
+      ) : clusters.length === 0 ? (
+        <EmptyState
+          icon={<ClusterOutlined />}
+          title="هنوز کلاستری ثبت نشده"
+          description="برای شروع، یک کلاستر Kubernetes را از طریق Backend به این کنسول متصل کنید."
+        />
       ) : (
-        <Row gutter={[16, 16]}>
-          {clusters.map((cluster) => (
-            <Col xs={24} sm={12} md={8} lg={6} key={cluster.id}>
-              <Card
-                hoverable
+        <>
+          <StatStrip
+            items={[
+              { label: 'کلاستر', value: clusters.length, accent: true },
+              { label: 'مجموع Namespace', value: totalNamespaces },
+            ]}
+          />
+
+          <div className="card-grid">
+            {clusters.map((cluster) => (
+              <div
+                key={cluster.id}
+                className="entity-card status-ok"
                 onClick={() => navigate(`/clusters/${cluster.id}/namespaces`)}
-                title={
-                  <span>
-                    <CloudServerOutlined style={{ marginLeft: 8, color: '#1677ff' }} />
-                    {cluster.name}
-                  </span>
-                }
               >
-                <p>
-                  <Text type="secondary">آدرس:</Text> {cluster.address}
-                </p>
-                <p>
-                  <Text type="secondary">تعداد Namespace:</Text> {cluster.namespace_count}
-                </p>
-                <Tag color="green">Active</Tag>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                <div className="card-top">
+                  <span className="card-title">{cluster.name}</span>
+                  <span className="card-icon">
+                    <ClusterOutlined />
+                  </span>
+                </div>
+
+                <div className="kv-row">
+                  <span className="kv-label">آدرس</span>
+                  <span className="kv-value">{cluster.address}</span>
+                </div>
+                <div className="kv-row">
+                  <span className="kv-label">
+                    <DatabaseOutlined style={{ marginLeft: 6 }} />
+                    Namespace
+                  </span>
+                  <span className="kv-value">{cluster.namespace_count}</span>
+                </div>
+
+                <div className="card-footer-row">
+                  <StatusPill tone="ok" live>
+                    متصل
+                  </StatusPill>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

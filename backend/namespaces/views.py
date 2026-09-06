@@ -7,6 +7,7 @@ from kubernetes.client.exceptions import ApiException
 from .models import Namespace
 from .serializers import NamespaceSerializer
 from .k8s_utils import create_k8s_namespace, delete_k8s_namespace
+from k8sbackend.metrics import track_operation
 
 
 class ConflictException(APIException):
@@ -34,6 +35,14 @@ class NamespaceListCreateView(generics.ListCreateAPIView):
             return Namespace.objects.none()
         return Namespace.objects.filter(cluster_id=cluster_id)
 
+    def list(self, request, *args, **kwargs):
+        with track_operation(resource="namespace", operation="list"):
+            return super().list(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        with track_operation(resource="namespace", operation="create"):
+            return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         cluster = serializer.validated_data['cluster']
         namespace_name = serializer.validated_data['name']
@@ -58,34 +67,37 @@ class NamespaceDeleteView(generics.DestroyAPIView):
     def delete(self, request, *args, **kwargs):
         pk = kwargs['pk']
 
-        with transaction.atomic():
+        with track_operation(resource="namespace", operation="delete") as op:
+            with transaction.atomic():
+                try:
+                    instance = Namespace.objects.select_for_update().get(pk=pk)
+                except Namespace.DoesNotExist:
+                    op["outcome"] = "error"
+                    return Response(status=http_status.HTTP_404_NOT_FOUND)
+
+                if instance.status == Namespace.Status.DELETING:
+                    op["outcome"] = "error"
+                    return Response(
+                        {"detail": "Namespace is already being deleted by another request."},
+                        status=http_status.HTTP_409_CONFLICT
+                    )
+
+                instance.status = Namespace.Status.DELETING
+                instance.save()
+
             try:
-                instance = Namespace.objects.select_for_update().get(pk=pk)
-            except Namespace.DoesNotExist:
-                return Response(status=http_status.HTTP_404_NOT_FOUND)
-
-            if instance.status == Namespace.Status.DELETING:
-                return Response(
-                    {"detail": "Namespace is already being deleted by another request."},
-                    status=http_status.HTTP_409_CONFLICT
-                )
-
-            instance.status = Namespace.Status.DELETING
-            instance.save()
-
-        try:
-            delete_k8s_namespace(instance.cluster, instance.name)
-        except ApiException as e:
-            if e.status == 404:
-                pass
-            else:
+                delete_k8s_namespace(instance.cluster, instance.name)
+            except ApiException as e:
+                if e.status == 404:
+                    pass
+                else:
+                    instance.status = Namespace.Status.ACTIVE
+                    instance.save()
+                    raise BadGatewayException(detail=f"Kubernetes API error: {e.reason}")
+            except Exception as e:
                 instance.status = Namespace.Status.ACTIVE
                 instance.save()
-                raise BadGatewayException(detail=f"Kubernetes API error: {e.reason}")
-        except Exception as e:
-            instance.status = Namespace.Status.ACTIVE
-            instance.save()
-            raise BadGatewayException(detail=f"Connection failed: {str(e)}")
+                raise BadGatewayException(detail=f"Connection failed: {str(e)}")
 
-        instance.delete()
-        return Response(status=http_status.HTTP_204_NO_CONTENT)
+            instance.delete()
+            return Response(status=http_status.HTTP_204_NO_CONTENT)

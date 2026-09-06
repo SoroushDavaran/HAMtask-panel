@@ -1,28 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  Spin, Alert, Button, Modal, Form, Input, InputNumber,
-  message, Typography, Tag, Card, Descriptions, List, Space
-} from 'antd'
-import {
-  ArrowLeftOutlined, EditOutlined, ReloadOutlined,
-  CheckCircleFilled, ClockCircleFilled, CloseCircleFilled
-} from '@ant-design/icons'
+import { Alert, Button, Modal, Form, Input, InputNumber, message } from 'antd'
+import { EditOutlined, ReloadOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { getAppDetail, updateApp } from '../api/apps'
+import { PageHeader, StatStrip, StatusPill, LoadingState, EmptyState } from '../components/UI'
+import { useBreadcrumb } from '../components/BreadcrumbContext'
 
-const { Title } = Typography
-
-const getPodStatusMeta = (pod) => {
-  if (pod.phase === 'Failed') {
-    return { color: 'error', text: 'Failed', icon: <CloseCircleFilled /> }
-  }
-  if (pod.phase === 'Pending') {
-    return { color: 'gold', text: 'Pending', icon: <ClockCircleFilled /> }
-  }
-  if (pod.phase === 'Running' && pod.ready) {
-    return { color: 'success', text: 'Running', icon: <CheckCircleFilled /> }
-  }
-  return { color: 'orange', text: 'Not Ready', icon: <ClockCircleFilled /> }
+const podTone = (pod) => {
+  if (pod.phase === 'Failed') return { tone: 'error', text: 'Failed' }
+  if (pod.phase === 'Pending') return { tone: 'warn', text: 'Pending' }
+  if (pod.phase === 'Running' && pod.ready) return { tone: 'ok', text: 'Running' }
+  return { tone: 'warn', text: 'Not Ready' }
 }
 
 function AppDetailPage() {
@@ -36,6 +24,11 @@ function AppDetailPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
+
+  useBreadcrumb([
+    { title: 'کلاسترها', onClick: () => navigate('/clusters') },
+    { title: app ? app.name : 'App' },
+  ])
 
   const fetchApp = async () => {
     try {
@@ -52,6 +45,7 @@ function AppDetailPage() {
 
   useEffect(() => {
     fetchApp()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId])
 
   const handleEdit = () => {
@@ -81,81 +75,82 @@ function AppDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px' }}>
-        <Spin size="large" tip="در حال بارگذاری..." />
+      <div className="page">
+        <LoadingState label="در حال دریافت اطلاعات App…" />
       </div>
     )
   }
 
   if (error) {
-    return <Alert type="error" message="خطا" description={error} showIcon style={{ margin: 24 }} />
+    return (
+      <div className="page">
+        <Alert type="error" message="خطا" description={error} showIcon />
+      </div>
+    )
   }
 
   const readyCount = app.pods.filter((p) => p.ready).length
   const totalCount = app.pods.length
+  const allReady = totalCount > 0 && readyCount === totalCount
 
   return (
-    <div style={{ padding: 24, maxWidth: 800, margin: '0 auto' }}>
-      <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ marginBottom: 16 }}>
-        بازگشت
-      </Button>
+    <div className="page">
+      <PageHeader
+        backLabel="بازگشت"
+        onBack={() => navigate(-1)}
+        title={app.name}
+        subtitle={app.image}
+        actions={
+          <>
+            <Button icon={<ReloadOutlined />} onClick={fetchApp}>
+              بروزرسانی
+            </Button>
+            <Button type="primary" icon={<EditOutlined />} onClick={handleEdit}>
+              ویرایش
+            </Button>
+          </>
+        }
+      />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>{app.name}</Title>
-        <Space>
-          <Button icon={<ReloadOutlined />} onClick={fetchApp}>
-            بروزرسانی
-          </Button>
-          <Button type="primary" icon={<EditOutlined />} onClick={handleEdit}>
-            ویرایش
-          </Button>
-        </Space>
+      <StatStrip
+        items={[
+          { label: 'Replicas', value: app.replicas, accent: true },
+          { label: 'CPU', value: app.cpu },
+          { label: 'Memory', value: app.memory },
+          { label: 'Pod آماده', value: `${readyCount}/${totalCount}` },
+        ]}
+      />
+
+      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h3 style={{ fontSize: 15, color: 'var(--text-strong)' }}>وضعیت Pod ها</h3>
+        <StatusPill tone={totalCount === 0 ? 'idle' : allReady ? 'ok' : 'warn'} live={allReady}>
+          {totalCount === 0 ? 'بدون Pod' : allReady ? 'همه آماده' : 'در حال آماده‌سازی'}
+        </StatusPill>
       </div>
 
-      <Card style={{ marginBottom: 24 }}>
-        <Descriptions column={1} bordered size="small">
-          <Descriptions.Item label="Image">{app.image}</Descriptions.Item>
-          <Descriptions.Item label="Replicas">{app.replicas}</Descriptions.Item>
-          <Descriptions.Item label="CPU">{app.cpu}</Descriptions.Item>
-          <Descriptions.Item label="Memory">{app.memory}</Descriptions.Item>
-          <Descriptions.Item label="وضعیت کلی">
-            <Tag color={readyCount === totalCount && totalCount > 0 ? 'success' : 'warning'}>
-              {totalCount === 0 ? 'بدون Pod' : `${readyCount} از ${totalCount} Pod آماده`}
-            </Tag>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-
-      <Title level={4}>وضعیت Pod ها</Title>
       {totalCount === 0 ? (
-        <Alert type="info" message="هنوز هیچ Pod ای برای این App ساخته نشده است." showIcon />
-      ) : (
-        <List
-          dataSource={app.pods}
-          renderItem={(pod) => {
-            const meta = getPodStatusMeta(pod)
-            return (
-              <List.Item>
-                <Card style={{ width: '100%' }} size="small">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography.Text code>{pod.name}</Typography.Text>
-                    <Tag icon={meta.icon} color={meta.color}>
-                      {meta.text}
-                    </Tag>
-                  </div>
-                </Card>
-              </List.Item>
-            )
-          }}
+        <EmptyState
+          icon={<AppstoreOutlined />}
+          title="هنوز Pod ای ساخته نشده"
+          description="پس از زمان‌بندی روی کلاستر، Pod های این App اینجا نمایش داده می‌شوند."
         />
+      ) : (
+        <div className="pod-list">
+          {app.pods.map((pod) => {
+            const meta = podTone(pod)
+            return (
+              <div className="pod-row" key={pod.name}>
+                <span className="pod-name">{pod.name}</span>
+                <StatusPill tone={meta.tone} live={meta.tone === 'ok'}>
+                  {meta.text}
+                </StatusPill>
+              </div>
+            )
+          })}
+        </div>
       )}
 
-      <Modal
-        title="ویرایش App"
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-      >
+      <Modal title="ویرایش App" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null}>
         <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item name="image" label="Image" rules={[{ required: true }]}>
             <Input />
