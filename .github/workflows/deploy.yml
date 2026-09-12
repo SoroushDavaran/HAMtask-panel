@@ -40,7 +40,7 @@ jobs:
     steps:
       - name: Deploy to Kubernetes
         run: |
-          k set image deployment/backend backend=soroushdv/k8s-panel-backend:${{ github.sha }} -n k8s-panel
-          k set image deployment/frontend frontend=soroushdv/k8s-panel-frontend:${{ github.sha }} -n k8s-panel
-          k rollout status deployment/backend -n k8s-panel
-          k rollout status deployment/frontend -n k8s-panel
+          sudo kubectl set image deployment/backend backend=soroushdv/k8s-panel-backend:${{ github.sha }} -n k8s-panel
+          sudo kubectl set image deployment/frontend frontend=soroushdv/k8s-panel-frontend:${{ github.sha }} -n k8s-panel
+          sudo kubectl rollout status deployment/backend -n k8s-panel
+          sudo kubectl rollout status deployment/frontend -n k8s-panel
