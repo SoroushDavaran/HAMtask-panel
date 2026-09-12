@@ -1,0 +1,46 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            soroushdv/k8s-panel-backend:latest
+            soroushdv/k8s-panel-backend:${{ github.sha }}
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            soroushdv/k8s-panel-frontend:latest
+            soroushdv/k8s-panel-frontend:${{ github.sha }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    steps:
+      - name: Deploy to Kubernetes
+        run: |
+          k set image deployment/backend backend=soroushdv/k8s-panel-backend:${{ github.sha }} -n k8s-panel
+          k set image deployment/frontend frontend=soroushdv/k8s-panel-frontend:${{ github.sha }} -n k8s-panel
+          k rollout status deployment/backend -n k8s-panel
+          k rollout status deployment/frontend -n k8s-panel
