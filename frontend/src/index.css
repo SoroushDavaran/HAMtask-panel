@@ -762,7 +762,7 @@ code,
   position: fixed;
   top: 64px;
   inset-inline: 0;
-  height: 46px;
+  height: 52px;
   z-index: 25;
   overflow: hidden;
   pointer-events: none;
@@ -941,7 +941,7 @@ code,
 
 .dino-idle-wag .dino-tail {
   animation: dino-tail-wag 0.6s ease-in-out 2;
-  transform-origin: 8px 22px;
+  transform-origin: 46px 26px;
 }
 @keyframes dino-tail-wag {
   0%,
@@ -1052,7 +1052,7 @@ body.custom-cursor-active textarea {
 .custom-cursor-ring {
   position: fixed;
   top: 0;
-  inset-inline-start: 0;
+  left: 0;
   pointer-events: none;
   z-index: 9999;
   border-radius: 50%;
