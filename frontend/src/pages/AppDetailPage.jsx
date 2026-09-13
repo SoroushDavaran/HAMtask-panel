@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Alert, Button, Modal, Form, Input, InputNumber, message } from 'antd'
 import { EditOutlined, ReloadOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { getAppDetail, updateApp } from '../api/apps'
-import { PageHeader, StatStrip, StatusPill, LoadingState, EmptyState } from '../components/UI'
+import { PageHeader, StatStrip, StatusPill, LoadingState, EmptyState, CopyValue } from '../components/UI'
+import { useGlobalLoading } from '../components/LoadingContext'
 import { useBreadcrumb } from '../components/BreadcrumbContext'
 
 const podTone = (pod) => {
@@ -24,6 +25,7 @@ function AppDetailPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
+  useGlobalLoading('app-detail', loading)
 
   useBreadcrumb([
     { title: 'کلاسترها', onClick: () => navigate('/clusters') },
@@ -99,7 +101,7 @@ function AppDetailPage() {
         backLabel="بازگشت"
         onBack={() => navigate(-1)}
         title={app.name}
-        subtitle={app.image}
+        subtitle={<CopyValue value={app.image} />}
         actions={
           <>
             <Button icon={<ReloadOutlined />} onClick={fetchApp}>
@@ -140,7 +142,9 @@ function AppDetailPage() {
             const meta = podTone(pod)
             return (
               <div className="pod-row" key={pod.name}>
-                <span className="pod-name">{pod.name}</span>
+                <span className="pod-name">
+                  <CopyValue value={pod.name} />
+                </span>
                 <StatusPill tone={meta.tone} live={meta.tone === 'ok'}>
                   {meta.text}
                 </StatusPill>

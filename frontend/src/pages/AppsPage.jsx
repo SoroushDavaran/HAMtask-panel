@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Alert, Button, Modal, Form, Input, InputNumber, Popconfirm, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, InfoCircleOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { getApps, createApp, deleteApp } from '../api/apps'
-import { PageHeader, StatStrip, EmptyState, LoadingState, StatusPill } from '../components/UI'
+import { PageHeader, StatStrip, EmptyState, CardSkeletonGrid, StatusPill, EntityCard, CopyValue } from '../components/UI'
+import { useGlobalLoading } from '../components/LoadingContext'
 import { useBreadcrumb } from '../components/BreadcrumbContext'
 
 function AppsPage() {
@@ -13,6 +14,7 @@ function AppsPage() {
   const [apps, setApps] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  useGlobalLoading('apps', loading)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -87,7 +89,7 @@ function AppsPage() {
       />
 
       {loading ? (
-        <LoadingState label="در حال دریافت App ها…" />
+        <CardSkeletonGrid count={3} />
       ) : error ? (
         <Alert type="error" message="خطا" description={error} showIcon />
       ) : apps.length === 0 ? (
@@ -118,11 +120,7 @@ function AppsPage() {
               const statusClass = total === 0 ? 'status-idle' : allReady ? 'status-ok' : 'status-warn'
 
               return (
-                <div
-                  key={app.id}
-                  className={`entity-card ${statusClass}`}
-                  onClick={() => navigate(`/apps/${app.id}`)}
-                >
+                <EntityCard key={app.id} status={statusClass.replace('status-', '')} onClick={() => navigate(`/apps/${app.id}`)}>
                   <div className="card-top">
                     <span className="card-title">{app.name}</span>
                     <span className="card-icon">
@@ -132,7 +130,9 @@ function AppsPage() {
 
                   <div className="kv-row">
                     <span className="kv-label">Image</span>
-                    <span className="kv-value">{app.image}</span>
+                    <span className="kv-value">
+                      <CopyValue value={app.image} />
+                    </span>
                   </div>
                   <div className="kv-row">
                     <span className="kv-label">Replicas</span>
@@ -183,7 +183,7 @@ function AppsPage() {
                       </Popconfirm>
                     </div>
                   </div>
-                </div>
+                </EntityCard>
               )
             })}
           </div>

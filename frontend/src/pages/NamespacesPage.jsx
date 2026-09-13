@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Alert, Button, Modal, Form, Input, Popconfirm, message } from 'antd'
 import { PlusOutlined, DeleteOutlined, AppstoreOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { getNamespaces, createNamespace, deleteNamespace } from '../api/namespaces'
-import { PageHeader, StatStrip, EmptyState, LoadingState, StatusPill } from '../components/UI'
+import { PageHeader, StatStrip, EmptyState, CardSkeletonGrid, StatusPill, EntityCard } from '../components/UI'
+import { useGlobalLoading } from '../components/LoadingContext'
 import { useBreadcrumb } from '../components/BreadcrumbContext'
 
 function NamespacesPage() {
@@ -13,6 +14,7 @@ function NamespacesPage() {
   const [namespaces, setNamespaces] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  useGlobalLoading('namespaces', loading)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -82,7 +84,7 @@ function NamespacesPage() {
       />
 
       {loading ? (
-        <LoadingState label="در حال دریافت Namespace ها…" />
+        <CardSkeletonGrid count={4} />
       ) : error ? (
         <Alert type="error" message="خطا" description={error} showIcon />
       ) : namespaces.length === 0 ? (
@@ -102,9 +104,9 @@ function NamespacesPage() {
 
           <div className="card-grid">
             {namespaces.map((ns) => (
-              <div
+              <EntityCard
                 key={ns.id}
-                className="entity-card status-ok"
+                status="ok"
                 onClick={() => navigate(`/clusters/${clusterId}/namespaces/${ns.id}`)}
               >
                 <div className="card-top">
@@ -150,7 +152,7 @@ function NamespacesPage() {
                     </Popconfirm>
                   </div>
                 </div>
-              </div>
+              </EntityCard>
             ))}
           </div>
         </>

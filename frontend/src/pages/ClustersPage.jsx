@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { Alert } from 'antd'
 import { ClusterOutlined, DatabaseOutlined } from '@ant-design/icons'
 import { getClusters } from '../api/clusters'
-import { PageHeader, StatStrip, EmptyState, LoadingState, StatusPill } from '../components/UI'
+import { PageHeader, StatStrip, EmptyState, CardSkeletonGrid, StatusPill, EntityCard, CopyValue } from '../components/UI'
+import { useGlobalLoading } from '../components/LoadingContext'
 
 function ClustersPage() {
   const [clusters, setClusters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const navigate = useNavigate()
+  useGlobalLoading('clusters', loading)
 
   useEffect(() => {
     const fetchClusters = async () => {
@@ -37,7 +39,7 @@ function ClustersPage() {
       />
 
       {loading ? (
-        <LoadingState label="در حال دریافت کلاسترها…" />
+        <CardSkeletonGrid count={3} />
       ) : error ? (
         <Alert type="error" message="خطا" description={error} showIcon />
       ) : clusters.length === 0 ? (
@@ -57,11 +59,7 @@ function ClustersPage() {
 
           <div className="card-grid">
             {clusters.map((cluster) => (
-              <div
-                key={cluster.id}
-                className="entity-card status-ok"
-                onClick={() => navigate(`/clusters/${cluster.id}/namespaces`)}
-              >
+              <EntityCard key={cluster.id} status="ok" onClick={() => navigate(`/clusters/${cluster.id}/namespaces`)}>
                 <div className="card-top">
                   <span className="card-title">{cluster.name}</span>
                   <span className="card-icon">
@@ -71,7 +69,9 @@ function ClustersPage() {
 
                 <div className="kv-row">
                   <span className="kv-label">آدرس</span>
-                  <span className="kv-value">{cluster.address}</span>
+                  <span className="kv-value">
+                    <CopyValue value={cluster.address} />
+                  </span>
                 </div>
                 <div className="kv-row">
                   <span className="kv-label">
@@ -86,7 +86,7 @@ function ClustersPage() {
                     متصل
                   </StatusPill>
                 </div>
-              </div>
+              </EntityCard>
             ))}
           </div>
         </>
