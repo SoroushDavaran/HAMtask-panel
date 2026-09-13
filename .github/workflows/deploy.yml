@@ -30,6 +30,8 @@ jobs:
         with:
           context: ./frontend
           push: true
+          build-args: |
+            VITE_API_BASE_URL=/api
           tags: |
             soroushdv/k8s-panel-frontend:latest
             soroushdv/k8s-panel-frontend:${{ github.sha }}
